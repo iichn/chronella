@@ -1,0 +1,9 @@
+.env*
+*.db
+__pycache__
+.venv
+venv
+.git
+*.pyc
+tests
+*.md

@@ -14,7 +14,8 @@ __pycache__/
 # реакт
 node_modules/
 # Результат сборки Vite
-frontend/dist/    
+frontend/dist/
+dist/    
       
 # Логи
 npm-debug.log*
@@ -23,9 +24,11 @@ yarn-error.log*
 
 # база данных
 backend/database.db
+*.db
 
 #secrets
 backend/.env
+.env
 
 
 
