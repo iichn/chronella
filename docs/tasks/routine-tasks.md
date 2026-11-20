@@ -15,7 +15,7 @@ ID: T-003
 Контекст: Проект: backend (FastAPI) в `backend/`, frontend (React+Vite) в `frontend/`. Конфиг и секреты хранятся в `.env`, который нельзя коммитить. Файлов Google credentials в проекте нет: client id/secret приходят из env, токены хранятся в БД.
 Файлы: создать `.env.example`, `backend/.dockerignore`, `frontend/.dockerignore`; изменить `.gitignore`.
 Делать:
-1. `.env.example` в корне: переменные для db (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB), backend (DATABASE_URL в формате postgresql+psycopg://USER:PASSWORD@db:5432/DBNAME, SECRET_KEY для JWT, ENCRYPTION_KEY для шифрования паролей ЭИОС (формат ключа уточнить по `backend/app/core/security.py`, указать в комментарии, как его сгенерировать), GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI=http://localhost:8080/api/auth/google/callback (может уточниться в T-007), FRONTEND_URL=http://localhost:8080 (добавить как закомментированную строку, раскомментирует T-007). Значения-заглушки вида `change-me`, возле каждой группы комментарий в одну строку.
+1. `.env.example` в корне: переменные для db (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB), backend (DATABASE_URL в формате postgresql+psycopg://USER:PASSWORD@db:5432/DBNAME, SECRET_KEY для JWT, ENCRYPTION_KEY для шифрования паролей ЭИОС (формат ключа уточнить по `backend/app/core/security.py`, указать в комментарии, как его сгенерировать), GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI=http://localhost:8080/google-callback, FRONTEND_URL=http://localhost:8080 (добавить как закомментированную строку, раскомментирует T-007). Значения-заглушки вида `change-me`, возле каждой группы комментарий в одну строку.
 2. `backend/.dockerignore`: `.env*`, `*.db`, `__pycache__`, `.venv`, `venv`, `.git`, `*.pyc`, `tests`, `*.md`.
 3. `frontend/.dockerignore`: `node_modules`, `dist`, `.env*`, `.git`, `*.md`.
 4. `.gitignore`: добавить недостающее (`.env`, `*.db`, `node_modules`, `dist`, `__pycache__`, `.venv`). Существующие строки не удалять.
@@ -57,17 +57,17 @@ ID: T-004
 ```
 ID: T-005
 Цель: Multi-stage Dockerfile для frontend и конфиг Nginx, отдающий статику и проксирующий /api на backend.
-Контекст: React + TypeScript + Vite. Сборка `npm run build` даёт каталог dist. В compose backend доступен как `http://backend:8000`. Браузер ходит на единый origin `http://localhost:8080`, запросы `/api/...` Nginx передаёт backend. Префикса `/api` у роутов backend нет (роуты вида `/auth/...`, `/`). Сборка: `tsc -b && vite build`. Версия Node в проекте не зафиксирована, берём 22 LTS.
+Контекст: React + TypeScript + Vite. Сборка `npm run build` даёт каталог dist. В compose backend доступен как `http://backend:8000`. Браузер ходит на единый origin `http://localhost:8080`, запросы `/api/...` Nginx передаёт backend. Префикса `/api` у роутов backend нет (роуты вида `/auth/...`, `/`). Скрипт `npm run build` = `tsc -b && vite build`, но в проекте 7 существующих ошибок типов (D-016), поэтому в Dockerfile сборка идёт командой `npx vite build` без `tsc -b`. Скрипты в `package.json` не менять. Версия Node в проекте не зафиксирована, берём 22 LTS.
 Файлы: создать `frontend/Dockerfile`, `frontend/nginx.conf`.
 Делать:
-1. Dockerfile, stage 1 `build`: FROM node:22-alpine; COPY package*.json; `npm ci`; COPY остального; `npm run build`.
+1. Dockerfile, stage 1 `build`: FROM node:22-alpine; COPY package*.json; `npm ci` (если `package-lock.json` нет, использовать `npm install` и сообщить об этом в ответе); COPY остального; `npx vite build`.
 2. Stage 2: FROM nginx:alpine; COPY --from=build /app/dist /usr/share/nginx/html; COPY nginx.conf /etc/nginx/conf.d/default.conf; EXPOSE 80.
 3. nginx.conf: `listen 80`; `location /` с `try_files $uri $uri/ /index.html` (SPA-роутинг); `location /api/` с `proxy_pass` на backend и заголовками Host, X-Real-IP, X-Forwarded-For, X-Forwarded-Proto.
 4. Про `proxy_pass`: у backend нет префикса /api, поэтому использовать `proxy_pass http://backend:8000/;` (слэш в конце срезает /api). В ответе одной строкой пояснить, зачем слэш.
 5. Включить gzip для js/css/json.
 Не трогать: код фронтенда, package.json.
 Готово, когда: образ собирается; в итоговом образе нет node_modules и исходников; обновление страницы на вложенном маршруте SPA отдаёт приложение, а не 404; запрос `/api/...` доходит до backend.
-Как проверить: `docker build -t chronella-frontend ./frontend`; `docker run --rm chronella-frontend ls /usr/share/nginx/html`; `docker run --rm chronella-frontend nginx -t`; после T-006: открыть вложенный маршрут и нажать F5.
+Как проверить: `docker build -t chronella-frontend ./frontend`; `docker run --rm chronella-frontend ls /usr/share/nginx/html`; `docker run --rm --add-host backend:127.0.0.1 chronella-frontend nginx -t` (`--add-host` нужен: вне compose имя `backend` не резолвится и `nginx -t` падает с `host not found in upstream`); `docker run --rm chronella-frontend sh -c "which node || echo no-node"` (должно быть `no-node`); после T-006: открыть вложенный маршрут и нажать F5.
 Формат ответа: оба файла целиком.
 ```
 
@@ -85,38 +85,39 @@ ID: T-006
 Делать:
 1. Сеть `chronella_net` (driver bridge). Все сервисы в ней.
 2. `db`: image postgres:16; environment POSTGRES_USER/PASSWORD/DB из `.env` через `${...}`; volume `pgdata:/var/lib/postgresql/data`; healthcheck `pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}` (interval 5s, timeout 5s, retries 10); БЕЗ `ports`.
-3. `backend`: build ./backend; `env_file: .env`; `depends_on: db: condition: service_healthy`; БЕЗ `ports`; `restart: unless-stopped`.
+3. `backend`: build ./backend; `env_file: .env`; `environment: DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}` (переопределяет значение из `.env`, чтобы учётные данные Postgres не дублировались); `depends_on: db: condition: service_healthy`; БЕЗ `ports`; `restart: unless-stopped`.
 4. `frontend`: build ./frontend; `depends_on: backend`; `ports: "8080:80"` (единственный опубликованный порт); `restart: unless-stopped`.
 5. Верхнеуровневые `volumes: pgdata` и `networks: chronella_net`.
 6. Пароли и секреты не писать в файл, только `${VAR}`.
 Не трогать: Dockerfile'ы, код, `.env`.
 Готово, когда: `docker compose config` без ошибок; `docker compose up --build` поднимает все три сервиса; backend стартует после healthy db; с хоста доступен только 8080; данные в pgdata переживают `docker compose down && docker compose up`.
-Как проверить: `docker compose config`; `docker compose up --build -d`; `docker compose ps` (db healthy, опубликован только 8080); `curl -sS localhost:5432` и `curl -sS localhost:8000` не соединяются; `curl -I localhost:8080` возвращает 200.
+Как проверить: `docker compose config`; `docker compose up --build -d`; `docker compose ps` (db healthy, опубликован только 8080); `Test-NetConnection localhost -Port 5432` и `Test-NetConnection localhost -Port 8000` дают `TcpTestSucceeded : False`; `curl.exe -I localhost:8080` возвращает 200 (в PowerShell именно `curl.exe`, `curl` это алиас другой команды).
 Формат ответа: файл целиком + список переменных, которые должны быть в `.env`.
 ```
 
 ---
 
-## T-009: `scripts/smoke.sh` + `docs/CHECKLIST.md`
+## T-009: `scripts/smoke.ps1` + `docs/CHECKLIST.md`
 
 Приложить: `docker-compose.yml`.
 
 ```
 ID: T-009
 Цель: Автоматизировать базовую проверку развёртывания и описать ручной сценарий приёмки.
-Контекст: Тестов нет. Система запускается `docker compose up --build`, фронтенд доступен на http://localhost:8080, backend и db с хоста недоступны. Эндпоинт живости backend: `GET /` (возвращает JSON-приветствие), через Nginx доступен как `GET /api/`.
-Файлы: создать `scripts/smoke.sh`, `docs/CHECKLIST.md`.
+Контекст: Среда: Windows, PowerShell (скрипт должен работать в Windows PowerShell 5.1 и в PowerShell 7). Не использовать `&&`, `export`, `grep`, `curl` в линуксовом смысле, bash-скрипты. Тестов нет. Система запускается `docker compose up --build`, фронтенд доступен на http://localhost:8080, backend и db с хоста недоступны. Эндпоинт живости backend: `GET /` (JSON-приветствие), через Nginx доступен как `GET /api/`.
+Файлы: создать `scripts/smoke.ps1`, `docs/CHECKLIST.md`.
 Делать:
-1. `scripts/smoke.sh` (bash, `set -u`, понятный вывод PASS/FAIL по каждой проверке, код возврата ≠0 при любом FAIL):
-   a. `docker compose ps` показывает db, backend, frontend в состоянии running (db healthy);
-   b. GET http://localhost:8080 возвращает 200;
-   c. GET http://localhost:8080/api/ возвращает 200;
-   d. порты 5432 и 8000 на хосте закрыты (нет соединения);
-   e. в `docker compose ps --format json` опубликован только порт 8080.
-2. `docs/CHECKLIST.md`: чек-лист для чистого клона: клонировать → `cp .env.example .env` → заполнить → `docker compose up --build` → `scripts/smoke.sh` → ручной сценарий (логин, подтяжка расписания из ЭИОС, правка события, экспорт в Google Calendar) → проверка сохранности данных (создать событие → `docker compose down` без `-v` → `up` → событие на месте) → `docker compose exec db psql -U <user> -d <db> -c "\dt"`.
+1. `scripts/smoke.ps1` (`$ErrorActionPreference = 'Stop'`, вывод PASS/FAIL по каждой проверке с цветом, в конце итог; код возврата 1 при любом FAIL, иначе 0):
+   a. `docker compose ps --format json`: каждая строка вывода это отдельный JSON-объект (если пришёл массив, обработать и его), разобрать через `ConvertFrom-Json`; сервисы db, backend, frontend в State `running`, у db Health `healthy`;
+   b. `Invoke-WebRequest http://localhost:8080 -UseBasicParsing` возвращает StatusCode 200;
+   c. `Invoke-WebRequest http://localhost:8080/api/ -UseBasicParsing` возвращает 200;
+   d. порты 5432 и 8000 на хосте закрыты: подключение через `System.Net.Sockets.TcpClient` к localhost с таймаутом 2 секунды не удаётся;
+   e. по полю `Publishers` из `docker compose ps --format json` опубликован только порт 8080 (учитывать записи с PublishedPort > 0).
+   Запуск: `powershell -ExecutionPolicy Bypass -File scripts\smoke.ps1`.
+2. `docs/CHECKLIST.md`: чек-лист для чистого клона, команды для PowerShell: `git clone` → `Copy-Item .env.example .env` → заполнить → `docker compose up --build` → `scripts\smoke.ps1` → ручной сценарий (логин, подтяжка расписания из ЭИОС, правка события, экспорт в Google Calendar) → проверка сохранности данных (создать событие → `docker compose down` без `-v` → `docker compose up -d` → событие на месте) → `docker compose exec db psql -U <user> -d <db> -c "\dt"`.
 Не трогать: остальные файлы.
-Готово, когда: `bash scripts/smoke.sh` на рабочем стенде печатает PASS по всем пунктам, на остановленном стенде возвращает ненулевой код; CHECKLIST содержит все шаги выше.
-Как проверить: запустить скрипт при поднятой системе, затем после `docker compose stop backend`.
+Готово, когда: `powershell -ExecutionPolicy Bypass -File scripts\smoke.ps1` на рабочем стенде печатает PASS по всем пунктам и `$LASTEXITCODE` равен 0; после `docker compose stop backend` скрипт печатает FAIL и `$LASTEXITCODE` равен 1; CHECKLIST содержит все шаги выше.
+Как проверить: запустить при поднятой системе, затем `docker compose stop backend`, запустить снова, посмотреть `$LASTEXITCODE`.
 Формат ответа: оба файла целиком.
 ```
 
@@ -132,8 +133,8 @@ ID: T-010
 Контекст: Chronella: веб-приложение для студентов (расписание и рейтинг-план из ЭИОС МГУ им. Н.П. Огарёва, экспорт в Google Calendar, аналитика нагрузки). Стек: React + FastAPI + PostgreSQL 16 + Nginx, всё в Docker Compose. README читает преподаватель курса «Управление конфигурацией ПО».
 Файлы: создать/заменить `README.md`.
 Делать:
-1. Разделы: описание (3–4 строки); архитектура (3 контейнера, сеть, том, порт 8080, текстовая схема или mermaid); требования (Docker, Docker Compose v2); быстрый старт (clone → `cp .env.example .env` → заполнить → `docker compose up --build` → http://localhost:8080); таблица переменных окружения (имя, назначение, пример без секретов); настройка Google OAuth (куда добавить redirect URI; файлов credentials нет, client id/secret в `.env`); управление (`down`, `down -v` с пояснением, что `-v` удаляет данные, логи, пересборка); структура репозитория; проверка (`scripts/smoke.sh`); типовые проблемы (порт 8080 занят, backend ждёт db, 404 при обновлении страницы).
-2. Режим разработки на хосте: backend `uvicorn main:app --reload --port 8000` (с `DATABASE_URL` на Postgres), frontend `VITE_API_BASE_URL=http://localhost:8000 npm run dev`.
+1. Разделы: описание (3–4 строки); архитектура (3 контейнера, сеть, том, порт 8080, текстовая схема или mermaid); требования (Docker, Docker Compose v2); быстрый старт (clone → копирование `.env.example` в `.env`: PowerShell `Copy-Item .env.example .env`, Linux/macOS `cp .env.example .env` → заполнить → `docker compose up --build` → http://localhost:8080); таблица переменных окружения (имя, назначение, пример без секретов); настройка Google OAuth (куда добавить redirect URI; файлов credentials нет, client id/secret в `.env`); управление (`down`, `down -v` с пояснением, что `-v` удаляет данные, логи, пересборка); структура репозитория; проверка (`scripts/smoke.ps1`); типовые проблемы (порт 8080 занят, backend ждёт db, 404 при обновлении страницы).
+2. Режим разработки на хосте, команды в двух вариантах (PowerShell и bash): backend: PowerShell `$env:DATABASE_URL="postgresql+psycopg://..."; uvicorn main:app --reload --port 8000`, bash `DATABASE_URL=... uvicorn main:app --reload --port 8000`; frontend: PowerShell `$env:VITE_API_BASE_URL="http://localhost:8000"; npm run dev`, bash `VITE_API_BASE_URL=http://localhost:8000 npm run dev`.
 3. Только факты, подтверждённые приложенными файлами. Нет данных, пиши «уточнить».
 Не трогать: остальные файлы.
 Готово, когда: по README с чистой машины можно запустить систему без других источников; все переменные из `.env.example` описаны; нет реальных секретов.
@@ -150,7 +151,7 @@ ID: T-010
 ```
 ID: T-011
 Цель: Составить сценарий видео-демонстрации курсовой длительностью 10–12 минут.
-Контекст: Курсовая по УКПО, тема C. Преподаватель ждёт видео ≥10 минут, отражающее весь объём работы. Для каждой практики из плана нужно показать доказательство, что она работает.
+Контекст: Курсовая по УКПО, тема C. Преподаватель ждёт видео ≥10 минут, отражающее весь объём работы. Для каждой практики из плана нужно показать доказательство, что она работает. Запись ведётся в Windows PowerShell: все команды в сценарии писать для PowerShell (`curl.exe` вместо `curl`, `Test-NetConnection` для проверки порта, без `&&`, `export`, `grep`).
 Файлы: создать `docs/VIDEO.md`.
 Делать: таблица «время | что на экране | что говорить (тезисы, 2–3 строки) | команда/файл»:
 0:00–1:00 проект и схема «было/стало»; 1:00–3:00 конфиг вне кода (.env.example, .gitignore, DATABASE_URL из env); 3:00–5:30 Dockerfile'ы (multi-stage, `docker images`); 5:30–7:00 docker-compose.yml (healthcheck, depends_on, сеть, том, один опубликованный порт); 7:00–8:30 чистый клон и `docker compose up --build` (ускорение сборки при монтаже); 8:30–10:00 работа приложения (логин, расписание, правка, экспорт в календарь); 10:00–11:30 доказательства (изоляция портов, сохранность данных после down/up, `\dt` и SELECT, порядок старта по логам, отсутствие секретов в образе); 11:30–12:00 итог по этапам плана.

@@ -6,8 +6,9 @@ import {
 } from '@mui/material';
 import { School as GradesIcon, AssignmentOutlined, Assessment as AssessmentIcon } from '@mui/icons-material';
 import AppLayout from '../components/AppLayout';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8000';
+const API_URL = API_BASE_URL;
 
 // ─── Карточка аналитики ────────────────────────────────────────────────────
 

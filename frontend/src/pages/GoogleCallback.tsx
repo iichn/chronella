@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Box, CircularProgress, Typography } from '@mui/material';
+import { API_BASE_URL } from '../config';
 
 export default function GoogleCallback() {
     const [searchParams] = useSearchParams();
@@ -12,7 +13,7 @@ export default function GoogleCallback() {
             if (!code) return;
 
             try {
-                const response = await fetch('http://localhost:8000/auth/google/callback', {
+                const response = await fetch(`${API_BASE_URL}/auth/google/callback`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

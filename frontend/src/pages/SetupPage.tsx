@@ -14,8 +14,7 @@ import {
 } from '@mui/material';
 import { Google as GoogleIcon } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-
-const API_URL = 'http://localhost:8000';
+import { API_BASE_URL } from '../config';
 
 interface ProfileStatus {
   mrsu_linked: boolean;
@@ -55,7 +54,7 @@ const SetupPage: React.FC = () => {
         navigate('/login');
         return;
       }
-      const response = await fetch(`${API_URL}/auth/profile`, {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -109,7 +108,7 @@ const SetupPage: React.FC = () => {
         setLoading(false);
         return;
       }
-      const response = await fetch(`${API_URL}/auth/link-mrsu`, {
+      const response = await fetch(`${API_BASE_URL}/auth/link-mrsu`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,7 +167,7 @@ const SetupPage: React.FC = () => {
     try {
         setLoading(true);
         // 1. Спрашиваем у бэкенда ссылку
-        const response = await fetch('http://localhost:8000/auth/google/url', {
+        const response = await fetch(`${API_BASE_URL}/auth/google/url`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('access_token')}`
             }

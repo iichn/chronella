@@ -9,7 +9,7 @@
 - `docker-compose.yml`: 3 сервиса, сеть `chronella_net`, том `pgdata`, healthcheck `pg_isready`, `depends_on: service_healthy`
 - Минимальные правки кода, без которых система не работает в контейнерах: базовый URL API на фронте (`/api`), OAuth-поток Google (redirect URI, редирект на фронт), поведение при отсутствии SECRET_KEY/ENCRYPTION_KEY
 - `.env.example`, `.gitignore`, `.dockerignore`
-- `scripts/smoke.sh`, `docs/CHECKLIST.md`
+- `scripts/smoke.ps1`, `docs/CHECKLIST.md`
 - README, сценарий видео
 
 ## Не входит

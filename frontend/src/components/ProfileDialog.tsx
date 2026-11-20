@@ -7,13 +7,12 @@ import {
   Google as GoogleIcon, 
   School as EiosIcon
 } from '@mui/icons-material';
+import { API_BASE_URL } from '../config';
 
 interface ProfileDialogProps {
   open: boolean;
   onClose: () => void;
 }
-
-const API_URL = 'http://localhost:8000';
 
 export default function ProfileDialog({ open, onClose }: ProfileDialogProps) {
   const [isGoogleLinked, setIsGoogleLinked] = useState<boolean | null>(null);
@@ -28,7 +27,7 @@ export default function ProfileDialog({ open, onClose }: ProfileDialogProps) {
   const checkGoogleStatus = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const res = await fetch(`${API_URL}/auth/google/check`, {
+      const res = await fetch(`${API_BASE_URL}/auth/google/check`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
@@ -47,7 +46,7 @@ export default function ProfileDialog({ open, onClose }: ProfileDialogProps) {
   const handleGoogleConnect = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/auth/google/url`);
+      const res = await fetch(`${API_BASE_URL}/auth/google/url`);
       const data = await res.json();
       if (data.url) window.location.href = data.url;
     } catch (e) {
@@ -61,7 +60,7 @@ export default function ProfileDialog({ open, onClose }: ProfileDialogProps) {
     setLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const res = await fetch(`${API_URL}/auth/google/disconnect`, {
+      const res = await fetch(`${API_BASE_URL}/auth/google/disconnect`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       });
