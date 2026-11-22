@@ -6,15 +6,19 @@
 
 ## Архитектура
 
-Система состоит из трёх контейнеров в изолированной bridge-сети `chronella_net` с именованным томом `pgdata` для хранения данных PostgreSQL. На хост опубликован только порт `8080` (Nginx); `backend` и `db` напрямую с хоста недоступны.
+Система состоит из трёх контейнеров в изолированной bridge-сети `chronella_net` с именованным томом `pgdata` для данных PostgreSQL. На хост опубликован только порт `8080` (Nginx); `backend` и `db` напрямую с хоста недоступны.
+
+- `frontend`: Nginx раздаёт собранное React-приложение и проксирует запросы `/api/*` на backend. Собственный Dockerfile, multi-stage сборка.
+- `backend`: FastAPI-приложение (интеграция с ЭИОС и Google Calendar, аналитика, JWT). Собственный Dockerfile.
+- `db`: официальный образ `postgres:16`, данные в томе `pgdata`. Backend стартует только после того, как healthcheck базы стал `healthy`.
 
 ```mermaid
 flowchart LR
-    Browser[Браузер] -->|http://localhost:8080| Frontend[frontend: Nginx :80]
-    Frontend -->|статика SPA| Browser
-    Frontend -->|/api/* -> /*| Backend[backend: FastAPI :8000]
-    Backend -->|psycopg :5432| DB[(db: PostgreSQL 16)]
-    DB --- Volume[(volume: pgdata)]
+    Browser["Браузер"] -->|"http://localhost:8080"| Frontend["frontend: Nginx :80"]
+    Frontend -->|"статика SPA"| Browser
+    Frontend -->|"/api/* → /*"| Backend["backend: FastAPI :8000"]
+    Backend -->|"psycopg :5432"| DB[("db: PostgreSQL 16")]
+    DB --- Volume[("volume: pgdata")]
 ```
 
 ## Требования
@@ -24,7 +28,7 @@ flowchart LR
 
 ## Быстрый старт
 
-1. Клонировать репозиторий (URL уточнить):
+1. Клонировать репозиторий:
 
 ```powershell
 git clone <URL-репозитория>
@@ -45,61 +49,73 @@ Linux / macOS:
 cp .env.example .env
 ```
 
-3. Заполнить переменные в `.env` (см. таблицу ниже).
+3. Заполнить `.env` (таблица ниже). Ключи `SECRET_KEY` и `ENCRYPTION_KEY` нужно сгенерировать: без валидных значений backend не стартует (так задумано), заглушка `change-me` не подходит.
 
 4. Собрать и запустить систему:
 
-```bash
-docker compose up --build
+```powershell
+docker compose up --build -d
 ```
 
-5. Открыть приложение в браузере: `http://localhost:8080`.
+5. Открыть приложение: `http://localhost:8080`.
 
 ## Переменные окружения
 
+Файл `.env` лежит в корне проекта и в репозиторий не попадает (в `.gitignore`). Строку подключения `DATABASE_URL` для backend Docker Compose собирает сам из `POSTGRES_*`, отдельно задавать её не нужно.
+
 | Переменная | Назначение | Пример |
 | --- | --- | --- |
-| `POSTGRES_USER` | Пользователь PostgreSQL | `change-me` |
-| `POSTGRES_PASSWORD` | Пароль пользователя PostgreSQL | `change-me` |
-| `POSTGRES_DB` | Имя базы данных PostgreSQL | `change-me` |
-| `DATABASE_URL` | Строка подключения к БД (в Docker Compose переопределяется из `POSTGRES_*`) | `postgresql+psycopg://change-me:change-me@db:5432/change-me` |
-| `SECRET_KEY` | Секретный ключ для подписи JWT | `change-me` |
-| `ENCRYPTION_KEY` | Ключ Fernet для шифрования паролей ЭИОС (`python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`) | `change-me` |
-| `FRONTEND_URL` | Базовый URL фронтенда (в `.env.example` закомментирован) | `http://localhost:8080` |
+| `POSTGRES_USER` | Пользователь PostgreSQL | `chronella` |
+| `POSTGRES_PASSWORD` | Пароль PostgreSQL. Только латиница и цифры: пароль попадает в URL подключения | `change-me` |
+| `POSTGRES_DB` | Имя базы данных | `chronella` |
+| `SECRET_KEY` | Ключ подписи JWT. Генерация: `python -c "import secrets; print(secrets.token_hex(32))"` | `change-me` |
+| `ENCRYPTION_KEY` | Ключ Fernet для шифрования паролей ЭИОС. Генерация: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` | `change-me` |
 | `GOOGLE_CLIENT_ID` | Client ID приложения Google OAuth | `change-me` |
 | `GOOGLE_CLIENT_SECRET` | Client Secret приложения Google OAuth | `change-me` |
-| `GOOGLE_REDIRECT_URI` | URI обратного вызова Google OAuth | `http://localhost:8080/google-callback` |
+| `GOOGLE_REDIRECT_URI` | Адрес возврата после авторизации Google (маршрут фронтенда) | `http://localhost:8080/google-callback` |
+
+Python на хосте для генерации ключей можно не ставить: ключ создаётся командой внутри контейнера после первой сборки:
+
+```powershell
+docker compose run --rm --no-deps --entrypoint python backend -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
 
 ## Настройка Google OAuth
 
-Файлов Google credentials в проекте нет — `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` передаются через `.env`, а токены пользователей хранятся в базе данных.
+Файлов Google credentials в проекте нет: `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET` передаются через `.env`, токены пользователей хранятся в базе данных.
 
-В настройках OAuth 2.0 Client ID (Google Cloud Console → APIs & Services → Credentials) добавьте в **Authorized redirect URIs** значение `GOOGLE_REDIRECT_URI` из `.env` (`http://localhost:8080/google-callback`).
+В Google Cloud Console (APIs & Services → Credentials → OAuth 2.0 Client ID) добавьте в **Authorized redirect URIs** точное значение `GOOGLE_REDIRECT_URI` из `.env`: `http://localhost:8080/google-callback`. Google возвращает браузер на эту страницу фронтенда, она передаёт код авторизации на backend.
 
 ## Управление
 
-Остановка контейнеров с сохранением данных БД:
+Остановка с сохранением данных БД:
 
-```bash
+```powershell
 docker compose down
 ```
 
-Остановка с удалением тома `pgdata` (**удаляет все данные базы данных**):
+Остановка с удалением тома `pgdata` (**удаляет все данные базы**):
 
-```bash
+```powershell
 docker compose down -v
 ```
 
-Просмотр логов:
+Логи:
 
-```bash
+```powershell
 docker compose logs -f
 ```
 
 Пересборка образов и запуск в фоне:
 
-```bash
+```powershell
 docker compose up --build -d
+```
+
+Применить изменения в `.env` (контейнер читает его при создании):
+
+```powershell
+docker compose up -d --force-recreate backend
 ```
 
 ## Структура репозитория
@@ -116,11 +132,11 @@ docker compose up --build -d
 │   ├── Dockerfile
 │   ├── .dockerignore
 │   ├── nginx.conf
-│   └── package.json
+│   ├── package.json
+│   └── src/
 ├── scripts/
 │   └── smoke.ps1
-├── docs/
-│   └── CHECKLIST.md
+├── docs/                 чек-лист приёмки и рабочие документы проекта
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
@@ -129,46 +145,73 @@ docker compose up --build -d
 
 ## Проверка развёртывания
 
-Автоматическая проверка (Windows PowerShell):
+Автоматическая проверка (Windows PowerShell). Проверяет, что сервисы работают, БД `healthy`, фронтенд и `/api/` отвечают, порты 5432 и 8000 с хоста закрыты, опубликован только порт 8080:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\smoke.ps1
 ```
 
-Полный ручной чек-лист приёмки находится в `docs/CHECKLIST.md`.
+Полный ручной чек-лист приёмки: `docs/CHECKLIST.md`.
 
 ## Режим разработки на хосте
 
-### Backend
+Нужен для работы над кодом без пересборки образов. В Compose порт БД на хост не публикуется, поэтому для этого режима отдельно запускается временный Postgres.
+
+База:
+
+```powershell
+docker run -d --name chronella-pg-dev -e POSTGRES_USER=chronella -e POSTGRES_PASSWORD=devpass -e POSTGRES_DB=chronella -p 5432:5432 postgres:16
+```
+
+Backend (создать `backend/.env` с `SECRET_KEY`, `ENCRYPTION_KEY`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` и `GOOGLE_REDIRECT_URI=http://localhost:5173/google-callback`; этот адрес тоже должен быть в списке Authorized redirect URIs; файл в `.gitignore`):
 
 PowerShell:
 
 ```powershell
-$env:DATABASE_URL="postgresql+psycopg://USER:PASSWORD@localhost:5432/DBNAME"; uvicorn main:app --reload --port 8000
+cd backend
+pip install -r requirements.txt
+$env:DATABASE_URL="postgresql+psycopg://chronella:devpass@localhost:5432/chronella"; uvicorn main:app --reload --port 8000
 ```
 
 bash:
 
 ```bash
-DATABASE_URL="postgresql+psycopg://USER:PASSWORD@localhost:5432/DBNAME" uvicorn main:app --reload --port 8000
+cd backend
+pip install -r requirements.txt
+DATABASE_URL="postgresql+psycopg://chronella:devpass@localhost:5432/chronella" uvicorn main:app --reload --port 8000
 ```
 
-### Frontend
+Frontend:
 
 PowerShell:
 
 ```powershell
+cd frontend
+npm ci
 $env:VITE_API_BASE_URL="http://localhost:8000"; npm run dev
 ```
 
 bash:
 
 ```bash
+cd frontend
+npm ci
 VITE_API_BASE_URL=http://localhost:8000 npm run dev
 ```
 
 ## Типовые проблемы
 
-- **Порт 8080 занят**: остановите процесс, занимающий порт `8080` на хосте, либо измените внешний порт сервиса `frontend` в `docker-compose.yml` (например, `"8081:80"`) и обновите `GOOGLE_REDIRECT_URI` в `.env`.
-- **Backend ждёт db**: `backend` стартует только после перехода `db` в статус `healthy` (`pg_isready`). Если запуск затянулся, проверьте логи (`docker compose logs db`) и значения `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` в `.env`.
-- **404 при обновлении страницы на вложенном маршруте**: убедитесь, что `frontend/nginx.conf` скопирован в `/etc/nginx/conf.d/default.conf` и содержит `try_files $uri$uri/ /index.html;` в `location /`, затем пересоберите `frontend` (`docker compose up --build -d`).
+- **Порт 8080 занят**: остановите процесс на этом порту либо измените внешний порт `frontend` в `docker-compose.yml` (например, `"8081:80"`). Тогда обновите `GOOGLE_REDIRECT_URI` в `.env` и в Google Cloud Console.
+- **Backend не стартует**: `docker compose logs backend`. Сообщения `SECRET_KEY is not set`, `ENCRYPTION_KEY is not set`, `Invalid ENCRYPTION_KEY` означают, что ключ не задан или не является валидным ключом Fernet.
+- **Backend ждёт db**: backend запускается после перехода `db` в `healthy`. Если запуск затянулся, смотрите `docker compose logs db` и значения `POSTGRES_*` в `.env`.
+- **Пароль PostgreSQL поменяли после первого запуска**: том `pgdata` хранит старый пароль. Выполните `docker compose down -v` (данные БД будут удалены) и запустите заново.
+- **`redirect_uri_mismatch` при Google-авторизации**: адрес из `GOOGLE_REDIRECT_URI` должен точно совпадать со значением в Google Cloud Console.
+- **502 или 504 на `/api/`**: backend остановлен или упал, смотрите `docker compose ps` и `docker compose logs backend`.
+- **404 при обновлении страницы на вложенном маршруте**: в `frontend/nginx.conf` в `location /` должна быть строка `try_files $uri $uri/ /index.html;`. После правки пересоберите `frontend`: `docker compose up --build -d`.
+
+## Известные ограничения
+
+- Схема БД создаётся при старте backend (`create_all`), система миграций не используется.
+- В запросах к ЭИОС отключена проверка TLS-сертификата (`verify=False`).
+- В коде фронтенда есть ошибки типов TypeScript, не связанные с контейнеризацией, поэтому образ собирается командой `vite build` без `tsc -b`.
+- Скрипт `backend/migrate_db.py` остался от SQLite-версии и в контейнерной системе не используется.
