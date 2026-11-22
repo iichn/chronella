@@ -134,8 +134,9 @@ ID: T-010
 Файлы: создать/заменить `README.md`.
 Делать:
 1. Разделы: описание (3–4 строки); архитектура (3 контейнера, сеть, том, порт 8080, текстовая схема или mermaid); требования (Docker, Docker Compose v2); быстрый старт (clone → копирование `.env.example` в `.env`: PowerShell `Copy-Item .env.example .env`, Linux/macOS `cp .env.example .env` → заполнить → `docker compose up --build` → http://localhost:8080); таблица переменных окружения (имя, назначение, пример без секретов); настройка Google OAuth (куда добавить redirect URI; файлов credentials нет, client id/secret в `.env`); управление (`down`, `down -v` с пояснением, что `-v` удаляет данные, логи, пересборка); структура репозитория; проверка (`scripts/smoke.ps1`); типовые проблемы (порт 8080 занят, backend ждёт db, 404 при обновлении страницы).
-2. Режим разработки на хосте, команды в двух вариантах (PowerShell и bash): backend: PowerShell `$env:DATABASE_URL="postgresql+psycopg://..."; uvicorn main:app --reload --port 8000`, bash `DATABASE_URL=... uvicorn main:app --reload --port 8000`; frontend: PowerShell `$env:VITE_API_BASE_URL="http://localhost:8000"; npm run dev`, bash `VITE_API_BASE_URL=http://localhost:8000 npm run dev`.
-3. Только факты, подтверждённые приложенными файлами. Нет данных, пиши «уточнить».
+2. В таблице переменных для `ENCRYPTION_KEY` и `SECRET_KEY` дать команды генерации для PowerShell: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` и `python -c "import secrets; print(secrets.token_hex(32))"`. Пояснить: без валидных значений backend не стартует (так задумано), плейсхолдер `change-me` не подходит.
+3. Режим разработки на хосте, команды в двух вариантах (PowerShell и bash): backend: PowerShell `$env:DATABASE_URL="postgresql+psycopg://..."; uvicorn main:app --reload --port 8000`, bash `DATABASE_URL=... uvicorn main:app --reload --port 8000`; frontend: PowerShell `$env:VITE_API_BASE_URL="http://localhost:8000"; npm run dev`, bash `VITE_API_BASE_URL=http://localhost:8000 npm run dev`.
+4. Только факты, подтверждённые приложенными файлами. Нет данных, пиши «уточнить».
 Не трогать: остальные файлы.
 Готово, когда: по README с чистой машины можно запустить систему без других источников; все переменные из `.env.example` описаны; нет реальных секретов.
 Как проверить: пройти README пошагово в чистом клоне.

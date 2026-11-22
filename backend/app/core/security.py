@@ -8,31 +8,17 @@ import base64
 # НАСТРОЙКА КЛЮЧА ШИФРОВАНИЯ
 # ==============================================================================
 
-# Мы генерируем ключ прямо здесь для режима разработки.
-# В реальном продакшене этот ключ должен быть в .env файле и скрыт от всех.
-# Но для диплома и локального запуска это идеальный вариант, чтобы не ловить ошибки.
+ENCRYPTION_KEY = os.getenv("ENCRYPTION_KEY")
+if not ENCRYPTION_KEY:
+    raise RuntimeError("ENCRYPTION_KEY is not set")
 
-# Этот ключ сгенерирован специально для твоего проекта.
-# Он статичный, чтобы при перезапуске сервера ты мог расшифровать то, что зашифровал раньше.
-DEV_KEY = b'Zq4t7w9E1rYm3oP2lK5jH8gF6dS4aA1zX0cV3bN2mM1=' 
+try:
+    CIPHER_SUITE = Fernet(ENCRYPTION_KEY)
+except Exception as exc:
+    raise RuntimeError("Invalid ENCRYPTION_KEY") from exc
 
 def get_cipher_suite():
-    """
-    Создает и возвращает объект для шифрования.
-    Сначала ищет ключ в переменных окружения, если нет — берет DEV_KEY.
-    """
-    key = os.getenv("ENCRYPTION_KEY")
-    
-    if not key:
-        # Если переменной нет, используем наш запасной ключ
-        # print("⚠️ Внимание: Используется встроенный DEV_KEY для шифрования")
-        return Fernet(DEV_KEY)
-    
-    try:
-        return Fernet(key)
-    except Exception:
-        # Если ключ в .env битый, тоже откатываемся на DEV_KEY
-        return Fernet(DEV_KEY)
+    return CIPHER_SUITE
 
 # ==============================================================================
 # ФУНКЦИИ ШИФРОВАНИЯ

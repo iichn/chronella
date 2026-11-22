@@ -25,12 +25,12 @@
 | T-002 | `DATABASE_URL` из env, `psycopg` (2 файла) | S | Executor | T-001 | **да** (данные) | done |
 | T-012 | Фронтенд: `config.ts` + Login/Registration без хардкода | S | Executor | T-001 | нет | done |
 | T-013 | Фронтенд: ProfileDialog, GoogleCallback, SetupPage без хардкода + описание OAuth-потока на фронте | S | Executor | T-012 | нет | done |
-| T-014 | Фронтенд: GradesPage, SchedulePage + финальный grep по хардкоду | S | Executor | T-013 | нет | todo |
+| T-014 | Фронтенд: GradesPage, SchedulePage + финальный grep по хардкоду | S | Executor | T-013 | нет | done |
 | T-003 | `.env.example`, `.gitignore`, `.dockerignore` ×2 | S | Routine | T-001 | нет | done |
 | T-004 | `backend/Dockerfile` | S | Routine | T-002 | нет | done |
 | T-005 | `frontend/Dockerfile` + `frontend/nginx.conf` | S | Routine | T-001 | **да** (прокси/пути) | done |
-| T-006 | `docker-compose.yml` | M | Routine | T-003, T-004, T-005 | **да** (порты, секреты) | todo |
-| T-007 | OAuth-поток Google, ключи `SECRET_KEY`/`ENCRYPTION_KEY` в контейнерах | M | Executor | T-006, T-013, T-014 | **да** (безопасность) | todo |
+| T-006 | `docker-compose.yml` | M | Routine | T-003, T-004, T-005 | **да** (порты, секреты) | done |
+| T-007 | Ключи `SECRET_KEY`/`ENCRYPTION_KEY`: fail-fast, описание redirect_uri (сужено: OAuth в контейнерах уже работает) | S | Executor | T-006 | **да** (безопасность) | review |
 | T-009 | `scripts/smoke.ps1` + `docs/CHECKLIST.md` | S | Routine | T-006 | нет | todo |
 | T-010 | `README.md` | S | Routine | T-007, T-009 | нет | todo |
 | T-011 | `docs/VIDEO.md`: сценарий видео | S | Routine | T-009 | нет | todo |
