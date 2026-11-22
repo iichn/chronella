@@ -1,13 +1,3 @@
----
-# yaml-language-server: $schema=schemas\page.schema.json
-Object type:
-    - Page
-Creation date: "2025-12-14T21:15:04Z"
-Created by:
-    - Данечка
-Emoji: "\U0001F916"
-id: bafyreifz2c6crqsx7o3xo454repts6ysf6nfwrg4ijpck3lbdarxgegovu
----
 # Бэк   
 python(FastAPI, Uvicorn (сервер для запуска FastAPI), Pydantic (для валидации данных) и SQLAlchemy (для работы с базой данных))   
 инициализация виртуального окружения `python3 -m venv venv`   
@@ -23,3 +13,9 @@ cd backend
 .\venv\Scripts\Activate
 uvicorn main:app --reload --port 8000
 ```
+
+проверить зависимости
+python -m pip list
+
+восстановить библиотеки
+python -m pip install -r requirements.txt

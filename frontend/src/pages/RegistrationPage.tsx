@@ -10,8 +10,7 @@ import {
 } from '@mui/material';
 import { PersonAdd } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-
-const API_URL = 'http://localhost:8000/auth/register';
+import { API_BASE_URL } from '../config';
 
 const RegistrationPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,7 +46,7 @@ const RegistrationPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -95,7 +94,7 @@ const RegistrationPage: React.FC = () => {
       console.error('Registration Error:', error);
       if (error instanceof TypeError && error.message.includes('fetch')) {
         setMessage({
-          text: 'Не удалось подключиться к серверу. Убедитесь, что бэкенд запущен на http://localhost:8000',
+          text: 'Не удалось подключиться к серверу. Убедитесь, что бэкенд запущен и доступен.',
           type: 'error',
         });
       } else if (error instanceof Error) {

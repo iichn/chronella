@@ -1,15 +1,3 @@
----
-# yaml-language-server: $schema=schemas\page.schema.json
-Object type:
-    - Page
-Creation date: "2025-12-14T18:09:53Z"
-Created by:
-    - Данечка
-Links:
-    - files\chronella.zip
-Emoji: "\U0001F5A5️"
-id: bafyreidni6reclabaa4wzk7jqta24s3u3c62mezsuxnpjyceggsmlpn5za
----
 # дизайн   
 ### Основа палитры:    
 ![s-l1200](files\s-l1200.jpg)    

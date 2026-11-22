@@ -10,8 +10,7 @@ import {
 } from '@mui/material';
 import { Login as LoginIcon } from '@mui/icons-material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
-
-const API_URL = 'http://localhost:8000/auth/login';
+import { API_BASE_URL } from '../config';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -30,7 +29,7 @@ const LoginPage: React.FC = () => {
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await fetch(API_URL, {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -84,7 +83,7 @@ const LoginPage: React.FC = () => {
       console.error('Login Error:', error);
       if (error instanceof TypeError && error.message.includes('fetch')) {
         setMessage({
-          text: 'Не удалось подключиться к серверу. Убедитесь, что бэкенд запущен на http://localhost:8000',
+          text: 'Не удалось подключиться к серверу. Убедитесь, что бэкенд запущен.',
           type: 'error',
         });
       } else if (error instanceof Error) {
